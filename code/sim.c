@@ -64,20 +64,21 @@ static inline void compute_all_weights(state_t *s) {
 /* In synchronous or batch mode, can precompute sums for each region */
 static inline void find_all_sums(state_t *s) {
     graph_t *g = s->g;
+    int local_node_count = g->local_node_count;
     START_ACTIVITY(ACTIVITY_SUMS);
     // TODO: It doesn't make sense to compute the weights for nodes that are not
     // in the local zone
-    int nid, eid;
-    for (nid = 0; nid < g->nnode; nid++) {
-	double sum = 0.0;
-	for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
-	    sum += s->node_weight[g->neighbor[eid]];
-	    s->neighbor_accum_weight[eid] = sum;
-	}
-	s->sum_weight[nid] = sum;
+    int ni, nid, eid;
+    for (ni = 0; ni < local_node_count; ni++) {
+        nid = g->local_node_list[ni];
+	    double sum = 0.0;
+	    for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
+	        sum += s->node_weight[g->neighbor[eid]];
+	        s->neighbor_accum_weight[eid] = sum;
+	    }
+	    s->sum_weight[nid] = sum;
     }
     FINISH_ACTIVITY(ACTIVITY_SUMS);
-
 }
 
 /*
@@ -160,18 +161,57 @@ static inline int fast_next_random_move(state_t *s, int r) {
 //      - Export weights for internal nodes adjacent to other zones
 //      - Import weights for external nodes adjacent to this zone
 static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
-    int ri;
+    int rid, ri, zi, numrats;
     find_all_sums(s);
-    for (ri = 0; ri < bcount; ri++) {
-	int rid = ri+bstart;
-	int onid = s->rat_position[rid];
-	int nnid = fast_next_random_move(s, rid);
-	s->rat_position[rid] = nnid;
-	s->rat_count[onid] -= 1;
-	s->rat_count[nnid] += 1;
+    int *zone_id = s->g->zone_id;
+    int this_zone = s->g->this_zone;
+    int nzone = s->g->nzone; 
+
+    // initialize export counts to 0 for all other zones
+    for (zi = 0; zi < nzone; zi++) {
+        s->export_numrats[zi] = 0;
     }
+
+    // process rats currently in this zone
+    for (ri = 0; ri < bcount; ri++) {
+        rid = ri + bstart;
+        char in_this_zone = s->zone_rat_bitvector[rid];
+
+        if (in_this_zone == 1) {
+            int onid = s->rat_position[rid];
+            int nnid = fast_next_random_move(s, rid);
+            int new_zone = zone_id[nnid];
+
+            if (new_zone == this_zone) {
+                s->rat_position[rid] = nnid;
+                s->rat_count[onid] -= 1;
+                s->rat_count[nnid] += 1;
+            }
+                        
+            else {
+                s->rat_count[onid] -= 1;
+                // clear this zone's bitvector
+                s->zone_rat_bitvector[rid] = 0;
+                s->zone_rat_count--;
+                
+                numrats = s->export_numrats[new_zone];
+                s->export_rid[new_zone][numrats] = rid;
+                s->export_nid[new_zone][numrats] = nnid;
+                s->export_seed[new_zone][numrats] = s->rat_seed[rid];
+
+                s->export_numrats[new_zone]++;
+            }
+        }
+    }
+    
     /* Update weights */
+#if MPI
+    exchange_rats(s);
+    // outmsg("exchange_rats gucci\n");
+    exchange_node_states(s);
     compute_all_weights(s);
+    exchange_node_weights(s);
+#endif
 }
 
 static void batch_step(state_t *s) {

@@ -69,92 +69,126 @@ typedef enum { UPDATE_SYNCHRONOUS, UPDATE_BATCH, UPDATE_RAT } update_t;
 
 /* Representation of graph */
 typedef struct {
-    /* General parameters */
-    int nnode;
-    int nedge;
-    int width;
-    int height;
-    int nzone;
+	/* General parameters */
+	int nnode;
+	int nedge;
+	int width;
+	int height;
+	int nzone;
 
-    /* Graph structure representation */
-    // Adjacency lists.  Includes self edge. Length=M+N.  Combined into single vector
-    int *neighbor;
-    // Starting index for each adjacency list.  Length=N+1
-    int *neighbor_start;
-    // For each node, zone identifier (number between 0 and Z-1).  Length=N
-    int *zone_id;
+	/* Graph structure representation */
+	// Adjacency lists.  Includes self edge. Length=M+N.  Combined into single vector
+	int *neighbor;
+	// Starting index for each adjacency list.  Length=N+1
+	int *neighbor_start;
+	// For each node, zone identifier (number between 0 and Z-1).  Length=N
+	int *zone_id;
 #if STATIC_ILF
-    // NOTE: This data removed.  ILFs are computed dynamically
-    // Ideal load factor for each node.  (This value gets read from file but is not used.)  Length=N
-    double *ilf;
+	// NOTE: This data removed.  ILFs are computed dynamically
+	// Ideal load factor for each node.  (This value gets read from file but is not used.)  Length=N
+	double *ilf;
 #endif
 
-    /**** Low-level details of a specific zone ****/
-    int this_zone;
-    /* How many nodes are in this zone */
-    int local_node_count;
-    /* How many edges are in this zone */
-    int local_edge_count;
-    /* Ordered list of nodes in this zone */
-    int *local_node_list;
-    /* For each other zone z, how many nodes in this zone have connections to nodes in z.  Length = Z */
-    int *export_node_count;
-    /* For each other zone z, lists of nodes in this zone with connections to nodes in z.  Length = Z */
-    int **export_node_list;
-    /* For each other zone z, how many nodes in z have connections to nodes in this zone.  Length = Z */
-    int *import_node_count;
-    /* For each other zone z, lists of nodes in z with connections to nodes in this zone.  Length = Z */
-    int **import_node_list;
+	/**** Low-level details of a specific zone ****/
+	int this_zone;
+	/* How many nodes are in this zone */
+	int local_node_count;
+	/* How many edges are in this zone */
+	int local_edge_count;
+	/* Ordered list of nodes in this zone */
+	int *local_node_list;
+	/* For each other zone z, how many nodes in this zone have connections to nodes in z.  Length = Z */
+	int *export_node_count;
+	/* For each other zone z, lists of nodes in this zone with connections to nodes in z.  Length = Z */
+	int **export_node_list;
+	/* For each other zone z, how many nodes in z have connections to nodes in this zone.  Length = Z */
+	int *import_node_count;
+	/* For each other zone z, lists of nodes in z with connections to nodes in this zone.  Length = Z */
+	int **import_node_list;
 
 } graph_t;
 
 /* Representation of simulation state */
 typedef struct {
-    graph_t *g;
+	graph_t *g;
 
-    /* Number of rats */
-    int nrat;
+	/* Number of rats */
+	int nrat;
 
 
-    /* Random seed controlling simulation */
-    random_t global_seed;
+	/* Random seed controlling simulation */
+	random_t global_seed;
 
-    /* State representation */
-    // Node Id for each rat.  Length=R
-    int *rat_position;
-    // Rat seeds.  Length = R
-    random_t *rat_seed;
+	/* State representation */
+	// Node Id for each rat.  Length=R
+	int *rat_position;
+	// Rat seeds.  Length = R
+	random_t *rat_seed;
 
-    /* Redundant encodings to speed computation */
-    // Count of number of rats at each node.  Length = N.
-    int *rat_count;
-    // Store weights for each node.  Length = N
-    double *node_weight;
+	/* Redundant encodings to speed computation */
+	// Count of number of rats at each node.  Length = N.
+	int *rat_count;
+	// Store weights for each node.  Length = N
+	double *node_weight;
 
-    /* Computed parameters */
-    double load_factor;  // nrat/nnnode
-    int batch_size;      // Number of rats per batch
+	/* Computed parameters */
+	double load_factor;  // nrat/nnnode
+	int batch_size;      // Number of rats per batch
 
-    // Memory to store sum of weights for each node's region.  Length = N
-    double *sum_weight;
-    // Memory to store cummulative weights for each node's region.  Length = M+N
-    double *neighbor_accum_weight;
+	// Memory to store sum of weights for each node's region.  Length = N
+	double *sum_weight;
+	// Memory to store cummulative weights for each node's region.  Length = M+N
+	double *neighbor_accum_weight;
 
-    // TODO: Declare the data structures you need to:
-    // * Keep track of the rats in this zone
-    // * Have storage for buffers you use to communicate with other zones
+	// Keep track of the rats in this zone
+	int zone_rat_count; // number of rats in zone
+	int *zone_rat_list; // list of rid in the zone. Length = nrat
+	unsigned char *zone_rat_bitvector; // bitvector for each rat's membership in the zone
+	
+	// Have storage for buffers you use to communicate with other zones.
+
+	// # of rats communicated per zone. Length = nzone
+	int *import_numrats;  
+	int *export_numrats; 
+
+	// nid per rat in each zone. Length = nzone * nrat
+	int **import_nid; 
+	int **export_nid;
+
+	// rid per rat in each zone. Length = nzone * nrat
+	int **import_rid;
+	int **export_rid;
+
+	// rat seed info per rat in each zone. Length = nzone * nrat
+	random_t **import_seed;
+	random_t **export_seed;
+
+	// # number of rats per node for each zone. Length = nzone * nnode
+	int **import_rat_count; 
+	int **export_rat_count;
+
+	// # number of nodes per zone. Length = nzone * nnode
+	int **import_node_state;
+	int **export_node_state;
+
+	// weight per node for each zone. Length = nzone * nnode 
+	double **import_node_weight; 
+	double **export_node_weight;
+		
 } state_t;
-    
+
+
+	
 /* Representation of a region.  Used by partitioner */
 typedef struct {
-    int id;
-    int x;  // Left X
-    int y;  // Upper Y
-    int w;  // Width
-    int h;  // Height
-    int node_count;  // Number of nodes
-    int edge_count;  // Number of (directed edges)
-    int zone_id;     // Zone assigned by partitioner
+	int id;
+	int x;  // Left X
+	int y;  // Upper Y
+	int w;  // Width
+	int h;  // Height
+	int node_count;  // Number of nodes
+	int edge_count;  // Number of (directed edges)
+	int zone_id;     // Zone assigned by partitioner
 } region_t;
 
 

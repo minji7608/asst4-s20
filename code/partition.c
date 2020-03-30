@@ -48,10 +48,10 @@ void assign_zones(region_t *region_list, int nregion, int nzone) {
     }
 
     find_partition(nregion, nzone, weights, zones);
-    fprintf(stderr, "%d\n", zones[0]);
-    fprintf(stderr, "%d\n", zones[1]);
-    fprintf(stderr, "%d\n", zones[2]);
-    fprintf(stderr, "%d\n", zones[3]);
+    //fprintf(stderr, "%d\n", zones[0]);
+    //fprintf(stderr, "%d\n", zones[1]);
+    //fprintf(stderr, "%d\n", zones[2]);
+    //fprintf(stderr, "%d\n", zones[3]);
     
     int curr_rid = 0;
     for (zid=0; zid<nzone; zid++) {
