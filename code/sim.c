@@ -62,24 +62,25 @@ static inline void compute_all_weights(state_t *s) {
 
 
 /* In synchronous or batch mode, can precompute sums for each region */
+
 static inline void find_all_sums(state_t *s) {
     graph_t *g = s->g;
-    int local_node_count = g->local_node_count;
     START_ACTIVITY(ACTIVITY_SUMS);
     // TODO: It doesn't make sense to compute the weights for nodes that are not
     // in the local zone
-    int ni, nid, eid;
-    for (ni = 0; ni < local_node_count; ni++) {
-        nid = g->local_node_list[ni];
-	    double sum = 0.0;
-	    for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
-	        sum += s->node_weight[g->neighbor[eid]];
-	        s->neighbor_accum_weight[eid] = sum;
-	    }
-	    s->sum_weight[nid] = sum;
+    int nid, eid;
+    for (nid = 0; nid < g->nnode; nid++) {
+	double sum = 0.0;
+	for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
+	    sum += s->node_weight[g->neighbor[eid]];
+	    s->neighbor_accum_weight[eid] = sum;
+	}
+	s->sum_weight[nid] = sum;
     }
     FINISH_ACTIVITY(ACTIVITY_SUMS);
+
 }
+
 
 /*
   Given list of increasing numbers, and target number,
@@ -127,7 +128,7 @@ static inline int fast_next_random_move(state_t *s, int r) {
     graph_t *g = s->g;
     random_t *seedp = &s->rat_seed[r];
     /* Guaranteed that have computed sum of weights */
-    double tsum = s->sum_weight[nid];    
+    double tsum = s->sum_weight[nid];
     double val = next_random_float(seedp, tsum);
 
     int estart = g->neighbor_start[nid];
@@ -144,6 +145,7 @@ static inline int fast_next_random_move(state_t *s, int r) {
 #if DEBUG
     outmsg("Computing rat %d: node %d-->%d (%.3f/%.3f)", r, nid, g->neighbor[estart+offset], val, tsum);
 #endif
+    outmsg("Computing rat %d: node %d-->%d (%.3f/%.3f)", r, nid, g->neighbor[estart+offset], val, tsum);
     return g->neighbor[estart + offset];
 }
 
@@ -161,6 +163,7 @@ static inline int fast_next_random_move(state_t *s, int r) {
 //      - Export weights for internal nodes adjacent to other zones
 //      - Import weights for external nodes adjacent to this zone
 static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
+
     int rid, ri, zi, numrats;
     find_all_sums(s);
     int *zone_id = s->g->zone_id;
@@ -177,10 +180,11 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
         rid = ri + bstart;
         char in_this_zone = s->zone_rat_bitvector[rid];
 
-        if (in_this_zone == 1) {
+        if ((int)in_this_zone == 1) {
             int onid = s->rat_position[rid];
             int nnid = fast_next_random_move(s, rid);
             int new_zone = zone_id[nnid];
+            //outmsg("%d, %d, %d\n", rid, zone_id[rid], nnid);
 
             if (new_zone == this_zone) {
                 s->rat_position[rid] = nnid;

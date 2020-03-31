@@ -270,6 +270,7 @@ bool init_zone(state_t *s, int zid) {
             s->zone_rat_count++;
         }
     }
+
     
     return true;
 }
@@ -306,10 +307,17 @@ state_t *get_rats(graph_t *g, random_t global_seed) {
     FINISH_ACTIVITY(ACTIVITY_GLOBAL_COMM);
 
     state_t *s = new_rats(g, nrat, global_seed);
-    memcpy(s->rat_position, rat_position, nrat);
+    memcpy(s->rat_position, rat_position, nrat*sizeof(int));
+    //outmsg("%d\n", s->rat_position[0]);
+    //outmsg("%d\n", s->rat_position[1]);
+    //outmsg("%d\n", s->rat_position[14]);
+    //outmsg("%d\n", s->rat_position[15]);
+
 
     //s->rat_position = rat_position;
+
     seed_rats(s); // reseeding the rats
+
                                                   
     return s;
 }
@@ -452,6 +460,7 @@ void exchange_node_states(state_t *s) {
     int len, this_zone;
     graph_t *g = s->g;
     int nzone = g->nzone;
+    int nnode = g->nnode;
     len = nzone-1;
     this_zone = g->this_zone;
     MPI_Request request[len];
@@ -468,7 +477,7 @@ void exchange_node_states(state_t *s) {
             nid = g->export_node_list[zi][ni];
             s->export_node_state[zi][nid] = s->rat_count[nid];
         }
-        MPI_Isend(s->export_node_state[zi], ncount, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
+        MPI_Isend(s->export_node_state[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
     }
 
     // receive from all other zones (sync)
@@ -476,7 +485,7 @@ void exchange_node_states(state_t *s) {
         if (zi == this_zone) continue;
         int ncount;
         ncount = g->import_node_count[zi];
-        MPI_Recv(s->import_node_state[zi], ncount, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(s->import_node_state[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         for (ni = 0; ni < ncount; ni++) {
             nid = g->import_node_list[zi][ni];
             s->rat_count[nid] = s->import_node_state[zi][nid];
@@ -492,6 +501,7 @@ void exchange_node_weights(state_t *s) {
     int len, this_zone;
     graph_t *g = s->g;
     int nzone = g->nzone;
+    int nnode =  g->nnode;
     len = nzone-1;
     this_zone = g->this_zone;
     MPI_Request request[len];
@@ -508,7 +518,7 @@ void exchange_node_weights(state_t *s) {
             nid = g->export_node_list[zi][ni];
             s->export_node_weight[zi][nid] = s->node_weight[nid];
         }
-        MPI_Isend(s->export_node_weight[zi], ncount, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
+        MPI_Isend(s->export_node_weight[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
     }
 
     // receive from all other zones (sync)
@@ -516,7 +526,7 @@ void exchange_node_weights(state_t *s) {
         if (zi == this_zone) continue;
         int ncount;
         ncount = g->import_node_count[zi];
-        MPI_Recv(s->import_node_weight[zi], ncount, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(s->import_node_weight[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         for (ni = 0; ni < ncount; ni++) {
             nid = g->import_node_list[zi][ni];
             s->node_weight[nid] = s->import_node_weight[zi][nid];
