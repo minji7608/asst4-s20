@@ -33,35 +33,35 @@ int compare(const void *s1, const void *s2) {
 
 void assign_zones(region_t *region_list, int nregion, int nzone) {
     // TODO:  This partitioner is very naive.  You can do better!
-    // for (int rid = 0; rid < nregion; rid++) {
-	  //   region_list[rid].zone_id = rid % nzone;
+    for (int rid = 0; rid < nregion; rid++) {
+	    region_list[rid].zone_id = rid % nzone;
+    }
+    // qsort(region_list, nregion, sizeof(region_t), compare);
+
+
+    // double weights[nregion];
+    // int zones[nzone];
+    // int rid, zid;
+
+    // for (rid=0; rid<nregion; rid++) {
+    //   weights[rid] = (double)(region_list[rid].edge_count);
     // }
-    qsort(region_list, nregion, sizeof(region_t), compare);
 
-
-    double weights[nregion];
-    int zones[nzone];
-    int rid, zid;
-
-    for (rid=0; rid<nregion; rid++) {
-      weights[rid] = (double)(region_list[rid].edge_count);
-    }
-
-    find_partition(nregion, nzone, weights, zones);
-    //fprintf(stderr, "%d\n", zones[0]);
-    //fprintf(stderr, "%d\n", zones[1]);
-    //fprintf(stderr, "%d\n", zones[2]);
-    //fprintf(stderr, "%d\n", zones[3]);
+    // find_partition(nregion, nzone, weights, zones);
+    // //fprintf(stderr, "%d\n", zones[0]);
+    // //fprintf(stderr, "%d\n", zones[1]);
+    // //fprintf(stderr, "%d\n", zones[2]);
+    // //fprintf(stderr, "%d\n", zones[3]);
     
-    int curr_rid = 0;
-    for (zid=0; zid<nzone; zid++) {
-      int end_rid = curr_rid + zones[zid];
-      // fpri ntf(stderr, "%d\n", end_rid);
-      while (curr_rid < end_rid) {
-        region_list[curr_rid].zone_id = zid;
-        curr_rid++;
-      }
-    }
+    // int curr_rid = 0;
+    // for (zid=0; zid<nzone; zid++) {
+    //   int end_rid = curr_rid + zones[zid];
+    //   // fpri ntf(stderr, "%d\n", end_rid);
+    //   while (curr_rid < end_rid) {
+    //     region_list[curr_rid].zone_id = zid;
+    //     curr_rid++;
+    //   }
+    // }
 }
 
 

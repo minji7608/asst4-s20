@@ -1,6 +1,15 @@
 
 #include "crun.h"
 
+void print_array(int *array, int length)
+{
+    outmsg("[ ");
+    for (int i = 0; i < length; i++) { 
+        outmsg("%d ", array[i]);
+    }
+    outmsg("]\n");
+    return;
+}
 
 /* Compute ideal load factor (ILF) for node */
 static inline double neighbor_ilf(state_t *s, int nid) {
@@ -64,10 +73,12 @@ static inline void compute_all_weights(state_t *s) {
 /* In synchronous or batch mode, can precompute sums for each region */
 static inline void find_all_sums(state_t *s) {
     graph_t *g = s->g;
-    int local_node_count = g->local_node_count;
+    
     START_ACTIVITY(ACTIVITY_SUMS);
+    // outmsg("------------- executing find_all_sums -------------\n");
     // TODO: It doesn't make sense to compute the weights for nodes that are not
     // in the local zone
+    int local_node_count = g->local_node_count;
     int ni, nid, eid;
     for (ni = 0; ni < local_node_count; ni++) {
         nid = g->local_node_list[ni];
@@ -77,7 +88,10 @@ static inline void find_all_sums(state_t *s) {
 	        s->neighbor_accum_weight[eid] = sum;
 	    }
 	    s->sum_weight[nid] = sum;
+        // outmsg("nid: %d --- tsum: %f\n", nid, sum); 
+        
     }
+    // outmsg("-----------\n");
     FINISH_ACTIVITY(ACTIVITY_SUMS);
 }
 
@@ -127,8 +141,11 @@ static inline int fast_next_random_move(state_t *s, int r) {
     graph_t *g = s->g;
     random_t *seedp = &s->rat_seed[r];
     /* Guaranteed that have computed sum of weights */
-    double tsum = s->sum_weight[nid];    
+    double tsum = s->sum_weight[nid];   
+
+    
     double val = next_random_float(seedp, tsum);
+    // outmsg("rat: %d seedp: %u tsum: %f ---> val: %f\n", r, *seedp, tsum, val); 
 
     int estart = g->neighbor_start[nid];
     int elen = g->neighbor_start[nid+1] - estart;
@@ -172,23 +189,38 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
         s->export_numrats[zi] = 0;
     }
 
-    // process rats currently in this zone
     for (ri = 0; ri < bcount; ri++) {
         rid = ri + bstart;
         char in_this_zone = s->zone_rat_bitvector[rid];
+        
+        // outmsg("zone: %d rid: %d in_this_zone: %d", this_zone, rid, in_this_zone);
 
-        if (in_this_zone == 1) {
+        // only process rats currently in the zone
+        if ((int)in_this_zone == 1) {
+            
             int onid = s->rat_position[rid];
+
+            // outmsg("processing rat %d in node %d\n", rid, onid);
             int nnid = fast_next_random_move(s, rid);
             int new_zone = zone_id[nnid];
 
+           
+
+            // if moving within the zone
             if (new_zone == this_zone) {
                 s->rat_position[rid] = nnid;
                 s->rat_count[onid] -= 1;
                 s->rat_count[nnid] += 1;
             }
-                        
+
+            // if moving to a new zone            
             else {
+                outmsg("new zone : %d -- nid: %d\n", new_zone, nnid);
+
+                outmsg("there's a rat going from....\n");
+                outmsg("zone %d -----> zone %d\n", this_zone, new_zone);
+                outmsg("node %d -----> node %d\n", onid, nnid);
+                
                 s->rat_count[onid] -= 1;
                 // clear this zone's bitvector
                 s->zone_rat_bitvector[rid] = 0;
@@ -201,13 +233,24 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
 
                 s->export_numrats[new_zone]++;
             }
+
+
         }
     }
+    for (int i=0; i<nzone; i++) {
+        
+        if (s->export_numrats[i] != 0){
+            outmsg("EXPORT_RID (%d ---> %d)\n", this_zone, i);
+            print_array(s->export_rid[i], s->export_numrats[i]);
+            print_array(s->export_nid[i], s->export_numrats[i]);
+        }
+        
+    }
+    
     
     /* Update weights */
 #if MPI
     exchange_rats(s);
-    // outmsg("exchange_rats gucci\n");
     exchange_node_states(s);
     compute_all_weights(s);
     exchange_node_weights(s);
