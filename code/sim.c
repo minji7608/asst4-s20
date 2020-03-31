@@ -58,15 +58,38 @@ static inline void take_census(state_t *s) {
 
 /* Recompute all node weights */
 static inline void compute_all_weights(state_t *s) {
-    int nid;
+    int ni, neighbor, nid, nid2;
     graph_t *g = s->g;
-    double *node_weight = s->node_weight;
+    int nzone = g->nzone;
     START_ACTIVITY(ACTIVITY_WEIGHTS);
-    for (nid = 0; nid < g->nnode; nid++)
-	node_weight[nid] = compute_weight(s, nid);
+    for (int zi = 0; zi < nzone; zi++) {
+        int neighbor_count = g->import_node_count[zi];
+        for(neighbor = 0; neighbor < neighbor_count; neighbor++){
+            nid = g->import_node_list[zi][neighbor];
+            s->node_weight[nid] =  compute_weight(s, nid);
+        }
+    }
+
+    for (ni = 0; ni < g->local_node_count; ni++){
+        nid2 = g->local_node_list[ni];   
+	    s->node_weight[nid2] = compute_weight(s, nid2);
+    }
+
     FINISH_ACTIVITY(ACTIVITY_WEIGHTS);
 
 }
+
+// /* Recompute all node weights */ 
+// static inline void compute_all_weights(state_t *s) {
+//     int nid;
+//     graph_t *g = s->g;
+//     double *node_weight = s->node_weight;
+//     START_ACTIVITY(ACTIVITY_WEIGHTS);
+//     for (nid = 0; nid < g->nnode; nid++)
+// 	node_weight[nid] = compute_weight(s, nid);
+//     FINISH_ACTIVITY(ACTIVITY_WEIGHTS);
+
+// }
 
 
 
