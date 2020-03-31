@@ -374,43 +374,56 @@ void exchange_rats(state_t *s) {
     int zi, ri;
     int nzone = s->g->nzone;
     int this_zone = s->g->this_zone;
-    int len = (nzone-1) * 4;
+    int len = nzone * 4;
     int export_numrats, import_numrats;
     MPI_Request request[len];
 
     // send data to all the other zones (async)
-    int count;
-    count = 0;
     for (zi = 0; zi < nzone; zi++) {
-        if (zi == this_zone) continue;
+
         export_numrats = s->export_numrats[zi];
-        if (this_zone == 0) {
-            // outmsg("--------------------------------------------------------\n");
-            // outmsg("sending data from zone %d ---> zone %d\n", this_zone, zi);
-            // outmsg("# of rats sending: %d\n", export_numrats);
+        MPI_Isend(&(s->export_numrats[zi]), 1, MPI_INT, zi, zi*4, MPI_COMM_WORLD, &(request[zi*4]));
+        if (export_numrats != 0) {
+        // if ((this_zone == 2) && (export_numrats != 0)) {
+        //     outmsg("--------------------------------------------------------\n");
+        //     outmsg("sending data from zone %d ---> zone %d\n", this_zone, zi);
+        //     outmsg("# of rats sending: %d\n", export_numrats);
+        //     outmsg("--------------------------------------------------------\n");
+        // }
+            
+            MPI_Isend(s->export_nid[zi], export_numrats, MPI_INT, zi, zi*4+1, MPI_COMM_WORLD, &(request[zi*4+1]));
+            MPI_Isend(s->export_rid[zi], export_numrats, MPI_INT, zi, zi*4+2, MPI_COMM_WORLD, &(request[zi*4+2]));
+            MPI_Isend(s->export_seed[zi], export_numrats, MPI_UNSIGNED, zi, zi*4+3, MPI_COMM_WORLD, &(request[zi*4+3]));
         }
-        
-        
-        
-        
-        MPI_Isend(&(export_numrats), 1, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count*4]));
-        MPI_Isend(s->export_nid[zi], export_numrats, MPI_INT, zi, 1, MPI_COMM_WORLD, &(request[count*4+1]));
-        MPI_Isend(s->export_rid[zi], export_numrats, MPI_INT, zi, 2, MPI_COMM_WORLD, &(request[count*4+2]));
-        MPI_Isend(s->export_seed[zi], export_numrats, MPI_UNSIGNED, zi, 3, MPI_COMM_WORLD, &(request[count*4+3]));
-        count++;
     }
     
     // receive data from all the other zones (synch)
     for (zi = 0; zi < nzone; zi++) {
         if (zi == this_zone) continue;
-        MPI_Recv(&(s->import_numrats[zi]), 1, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&(s->import_numrats[zi]), 1, MPI_INT, zi, this_zone*4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         import_numrats = s->import_numrats[zi];
-        MPI_Recv(s->import_nid[zi], import_numrats, MPI_INT, zi, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(s->import_rid[zi], import_numrats, MPI_INT, zi, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(s->import_seed[zi], import_numrats, MPI_UNSIGNED, zi, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if (import_numrats != 0) {
+        // if ((this_zone == 0) && (import_numrats != 0)) {
+        //     outmsg("--------------------------------------------------------\n");
+        //     outmsg("receiving data from zone %d ---> zone %d\n", this_zone, zi);
+        //     outmsg("# of rats getting: %d\n", import_numrats);
+        //     outmsg("--------------------------------------------------------\n");
+        // }
+            MPI_Recv(s->import_nid[zi], import_numrats, MPI_INT, zi, this_zone*4+1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(s->import_rid[zi], import_numrats, MPI_INT, zi, this_zone*4+2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(s->import_seed[zi], import_numrats, MPI_UNSIGNED, zi, this_zone*4+3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
     }
 
-    MPI_Waitall(len, request, MPI_STATUS_IGNORE);
+    for (zi = 0; zi < nzone; zi++) {
+        export_numrats = s->export_numrats[zi];
+        MPI_Wait(&(request[zi*4]), MPI_STATUS_IGNORE);
+        if (export_numrats != 0) {
+            MPI_Wait(&(request[zi*4+1]), MPI_STATUS_IGNORE);
+            MPI_Wait(&(request[zi*4+2]), MPI_STATUS_IGNORE);
+            MPI_Wait(&(request[zi*4+3]), MPI_STATUS_IGNORE);
+        }
+    }
     
     // move received data
     // int old_rat_count = s->zone_rat_count;
@@ -420,21 +433,29 @@ void exchange_rats(state_t *s) {
         // only read from other zones' import buffer
         if (zi == this_zone) continue;
         R = s->import_numrats[zi];
-        s->zone_rat_count += R;
+        // if (R != 0) outmsg("moving %d rats (zone %d --> zone %d)\n", R, zi, this_zone);
+        // if (R != 0) outmsg("old zone_rat_count: %d\n", s->zone_rat_count);
 
-        for (ri = 0; ri < R; ri++) {
-            rid = s->import_rid[zi][ri];
-            nid = s->import_nid[zi][ri];
+        if (R != 0) {
+            s->zone_rat_count += R;
+            // if (R != 0) outmsg("new zone_rat_count: %d\n", s->zone_rat_count);
 
-            s->rat_position[rid] = nid;
-            s->rat_count[nid]++;
+            for (ri = 0; ri < R; ri++) {
+                rid = s->import_rid[zi][ri];
+                nid = s->import_nid[zi][ri];
+                
+                // if (R != 0) outmsg("moving rat [%d] to node [%d]\n", rid, nid);
+                
+                s->rat_position[rid] = nid;
+                s->rat_count[nid]++;
 
-            // update bitvector membership
-            assert(s->zone_rat_bitvector[rid] == 0);
-            s->zone_rat_bitvector[rid] = 1;
+                // update bitvector membership
+                assert(s->zone_rat_bitvector[rid] == 0);
+                s->zone_rat_bitvector[rid] = 1;
 
-            // update new rat seed
-            s->rat_seed[rid] = s->import_seed[zi][ri];
+                // update new rat seed
+                s->rat_seed[rid] = s->import_seed[zi][ri];
+            }
         }
     }
 
@@ -444,38 +465,54 @@ void exchange_rats(state_t *s) {
 /* Exchange node counts for boundary nodes between zones */
 void exchange_node_states(state_t *s) {
     START_ACTIVITY(ACTIVITY_COMM);
-    int len, this_zone;
     graph_t *g = s->g;
     int nzone = g->nzone;
     int nnode = g->nnode;
-    len = nzone-1;
-    this_zone = g->this_zone;
-    MPI_Request request[len];
+    int this_zone = g->this_zone;
+    MPI_Request request[nzone];
 
     // send to all other zones (async)
-    int count;
     int zi, ni, nid;
-    count = 0;
     for (zi = 0; zi < nzone; zi++) {
-        if (zi == this_zone) continue;
-        int ncount;
-        ncount = g->export_node_count[zi];
+
+        int ncount = g->export_node_count[zi];
+        if (ncount == 0) continue;
+
+        assert(ncount > 0);
+
         for (ni = 0; ni < ncount; ni++) {
             nid = g->export_node_list[zi][ni];
             s->export_node_state[zi][nid] = s->rat_count[nid];
         }
-        MPI_Isend(s->export_node_state[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
+
+        MPI_Isend(s->export_node_state[zi], nnode, MPI_INT, zi, zi, MPI_COMM_WORLD, &(request[zi]));
     }
 
     // receive from all other zones (sync)
     for (zi = 0; zi < nzone; zi++) {
-        if (zi == this_zone) continue;
-        int ncount;
-        ncount = g->import_node_count[zi];
-        MPI_Recv(s->import_node_state[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        for (ni = 0; ni < ncount; ni++) {
-            nid = g->import_node_list[zi][ni];
-            s->rat_count[nid] = s->import_node_state[zi][nid];
+        int ncount = g->import_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            MPI_Recv(s->import_node_state[zi], nnode, MPI_INT, zi, this_zone, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+
+    for (zi = 0; zi < nzone; zi++) {
+        int ncount = g->export_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            MPI_Wait(&(request[zi]), MPI_STATUS_IGNORE);
+        }
+    }
+
+    for (zi = 0; zi < nzone; zi++) {
+        int ncount = g->import_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            for (ni = 0; ni < ncount; ni++) {
+                nid = g->import_node_list[zi][ni];
+                s->rat_count[nid] = s->import_node_state[zi][nid];
+            }
         }
     }
 
@@ -485,38 +522,57 @@ void exchange_node_states(state_t *s) {
 /* Exchange weights of nodes on boundaries */
 void exchange_node_weights(state_t *s) {
     START_ACTIVITY(ACTIVITY_COMM);
-    int len, this_zone;
     graph_t *g = s->g;
     int nzone = g->nzone;
     int nnode = g->nnode;
-    len = nzone-1;
-    this_zone = g->this_zone;
-    MPI_Request request[len];
+    int this_zone = g->this_zone;
+    MPI_Request request[nzone];
 
     // send to all other zones (async)
-    int count;
     int zi, ni, nid;
-    count = 0;
     for (zi = 0; zi < nzone; zi++) {
-        if (zi == this_zone) continue;
-        int ncount;
-        ncount = g->export_node_count[zi];
+
+        int ncount = g->export_node_count[zi];
+        if (ncount == 0) continue;
+
+        assert(ncount > 0);
+
         for (ni = 0; ni < ncount; ni++) {
             nid = g->export_node_list[zi][ni];
+            if (s->node_weight[nid] == 0) outmsg("node_weight zero at [%d]\n", nid);
             s->export_node_weight[zi][nid] = s->node_weight[nid];
         }
-        MPI_Isend(s->export_node_weight[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));
+
+        MPI_Isend(s->export_node_weight[zi], nnode, MPI_DOUBLE, zi, zi, MPI_COMM_WORLD, &(request[zi]));
     }
 
     // receive from all other zones (sync)
     for (zi = 0; zi < nzone; zi++) {
-        if (zi == this_zone) continue;
-        int ncount;
-        ncount = g->import_node_count[zi];
-        MPI_Recv(s->import_node_weight[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        for (ni = 0; ni < ncount; ni++) {
-            nid = g->import_node_list[zi][ni];
-            s->node_weight[nid] = s->import_node_weight[zi][nid];
+        int ncount = g->import_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            MPI_Recv(s->import_node_weight[zi], nnode, MPI_DOUBLE, zi, this_zone, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    
+
+    for (zi = 0; zi < nzone; zi++) {
+        int ncount = g->export_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            MPI_Wait(&(request[zi]), MPI_STATUS_IGNORE);
+        }
+    }
+
+    for (zi = 0; zi < nzone; zi++) {
+        int ncount = g->import_node_count[zi];
+        if (ncount != 0) {
+            assert(ncount > 0);
+            for (ni = 0; ni < ncount; ni++) {
+                nid = g->import_node_list[zi][ni];
+                // if (s->import_node_weight[zi][nid] == 0) outmsg("!!!!!node_weight zero at [%d]\n", nid);
+                s->node_weight[nid] = s->import_node_weight[zi][nid];
+            }
         }
     }
     FINISH_ACTIVITY(ACTIVITY_COMM);

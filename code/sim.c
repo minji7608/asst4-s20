@@ -84,6 +84,7 @@ static inline void find_all_sums(state_t *s) {
         nid = g->local_node_list[ni];
 	    double sum = 0.0;
 	    for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
+            // outmsg("node [%d] weight: %f\n", g->neighbor[eid], s->node_weight[g->neighbor[eid]]);
 	        sum += s->node_weight[g->neighbor[eid]];
 	        s->neighbor_accum_weight[eid] = sum;
 	    }
@@ -215,11 +216,11 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
 
             // if moving to a new zone            
             else {
-                outmsg("new zone : %d -- nid: %d\n", new_zone, nnid);
+                // outmsg("new zone : %d -- nid: %d\n", new_zone, nnid);
 
-                outmsg("there's a rat going from....\n");
-                outmsg("zone %d -----> zone %d\n", this_zone, new_zone);
-                outmsg("node %d -----> node %d\n", onid, nnid);
+                // outmsg("there's a rat [%d] going from....\n", rid);
+                // outmsg("zone %d -----> zone %d\n", this_zone, new_zone);
+                // outmsg("node %d -----> node %d\n", onid, nnid);
                 
                 s->rat_count[onid] -= 1;
                 // clear this zone's bitvector
@@ -237,15 +238,16 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
 
         }
     }
-    for (int i=0; i<nzone; i++) {
+
+    // for (int i=0; i<nzone; i++) {
         
-        if (s->export_numrats[i] != 0){
-            outmsg("EXPORT_RID (%d ---> %d)\n", this_zone, i);
-            print_array(s->export_rid[i], s->export_numrats[i]);
-            print_array(s->export_nid[i], s->export_numrats[i]);
-        }
+    //     // if (s->export_numrats[i] != 0){
+    //     //     outmsg("EXPORT_RID (%d ---> %d)\n", this_zone, i);
+    //     //     print_array(s->export_rid[i], s->export_numrats[i]);
+    //     //     print_array(s->export_nid[i], s->export_numrats[i]);
+    //     // }
         
-    }
+    // }
     
     
     /* Update weights */
