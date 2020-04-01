@@ -309,6 +309,7 @@ double simulate(state_t *s, int count, int dinterval, bool display) {
     
     if (display) {
 #if MPI
+    //exchange_node_states(s);
     exchange_node_weights(s);
 
 	if (s->g->this_zone == 0)

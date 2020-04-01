@@ -175,6 +175,10 @@ typedef struct {
 	// weight per node for each zone. Length = nzone * nnode 
 	double **import_node_weight; 
 	double **export_node_weight;
+
+	int* zone_node_id;
+	int* export_node_id;
+	int* export_node_count;
 		
 } state_t;
 

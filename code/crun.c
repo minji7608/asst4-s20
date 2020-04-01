@@ -1,5 +1,3 @@
-/* C implementation of graphrats simulator */
-
 #include <string.h>
 #include <getopt.h>
 
@@ -50,24 +48,19 @@ int main(int argc, char *argv[]) {
     int process_count = 1;
     int this_zone = 0;
     int nzone = 0;
-
 #if MPI
-
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
     MPI_Comm_rank(MPI_COMM_WORLD, &this_zone);
     nzone = process_count;
 
 #endif
-
     bool mpi_master = this_zone == 0;
-
 #if MPI
     char *optstring = "hg:r:R:n:s:i:qI";
 #else
     char *optstring = "hg:r:R:n:s:i:qIz:";
 #endif
-
     while ((c = getopt(argc, argv, optstring)) != -1) {
         switch(c) {
         case 'h':
@@ -122,48 +115,47 @@ int main(int argc, char *argv[]) {
     START_ACTIVITY(ACTIVITY_STARTUP);
 
     if (mpi_master) {
-
       	if (gfile == NULL) {
-            outmsg("Need graph file\n");
-            usage(argv[0]);
-	    }
-        if (rfile == NULL && !show_zones_only) {
-                outmsg("Need initial rat position file\n");
-                usage(argv[0]);
-	    }
-	    g = read_graph(gfile, nzone);
-	    if (g == NULL) {
-	        full_exit(1);
-	    }
+	    outmsg("Need graph file\n");
+	    usage(argv[0]);
+	}
+	if (rfile == NULL && !show_zones_only) {
+	    outmsg("Need initial rat position file\n");
+	    usage(argv[0]);
+	}
+	g = read_graph(gfile, nzone);
+	if (g == NULL) {
+	    full_exit(1);
+	}
 
-	    /* This only happens in sequential mode */
-        if (show_zones_only) {
-            for (int z = 0; z < nzone; z++) {
-                outmsg("*********** Setting up zone %d **********", z);
-                if (!setup_zone(g, z, true)) {
-                    full_exit(1);
-                }
-                clear_zone(g);
-            }
-            full_exit(0);
-        }
+	/* This only happens in sequential mode */
+	if (show_zones_only) {
+	    for (int z = 0; z < nzone; z++) {
+		outmsg("*********** Setting up zone %d **********", z);
+		if (!setup_zone(g, z, true)) {
+		    full_exit(1);
+		}
+		clear_zone(g);
+	    }
+	    full_exit(0);
+	}
 
-        s = read_rats(g, rfile, global_seed);
-        if (s == NULL) {
-            full_exit(1);
-        }
+	s = read_rats(g, rfile, global_seed);
+	if (s == NULL) {
+	    full_exit(1);
+	}
 
 #if MPI
         /* Master distributes the graph to the other processors */
 	send_graph(g);
-	if (!setup_zone(g, this_zone, false)) 
+	if (!setup_zone(g, this_zone, false))
 	    full_exit(1);
         /* Master distributes rats to the other processors */
-	    send_rats(s);
-	    // * Distribute copy of rats to other zones
-	    if (!init_zone(s, this_zone)) {
-	        outmsg("Couldn't allocate space for zone %d data structures.  Exiting", this_zone);
-	        full_exit(0);
+	send_rats(s);
+	// * Distribute copy of rats to other zones
+	if (!init_zone(s, this_zone)) {
+	    outmsg("Couldn't allocate space for zone %d data structures.  Exiting", this_zone);
+	    full_exit(0);
         }
 #endif
     } else {
@@ -197,7 +189,6 @@ int main(int argc, char *argv[]) {
 
     if (mpi_master)
 	outmsg("Running with %d processes.\n", process_count);
-    // if (mpi_master)
 	// Right now, run sequential simulator on master node
 	// TODO: All processes should run simulator on their zones
 	secs = simulate(s, steps, dinterval, display);
@@ -210,4 +201,3 @@ int main(int argc, char *argv[]) {
 #endif    
     return 0;
 }
-
