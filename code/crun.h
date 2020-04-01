@@ -141,27 +141,27 @@ typedef struct {
 	double *neighbor_accum_weight;
 
 	// Keep track of the rats in this zone
-	int zone_rat_count; // number of rats in zone
+	//int zone_rat_count; // number of rats in zone
 	int *zone_rat_list; // list of rid in the zone. Length = nrat
 	unsigned char *zone_rat_bitvector; // bitvector for each rat's membership in the zone
 	
 	// Have storage for buffers you use to communicate with other zones.
 
 	// # of rats communicated per zone. Length = nzone
-	int *import_numrats;  
+	//int *import_numrats;  
 	int *export_numrats; 
 
 	// nid per rat in each zone. Length = nzone * nrat
-	int **import_nid; 
-	int **export_nid;
+	//int **import_nid; 
+	//int **export_nid;
 
 	// rid per rat in each zone. Length = nzone * nrat
-	int **import_rid;
-	int **export_rid;
+	int **import_rat_info;
+	int **export_rat_info;
 
 	// rat seed info per rat in each zone. Length = nzone * nrat
-	random_t **import_seed;
-	random_t **export_seed;
+	//random_t **import_seed;
+	//random_t **export_seed;
 
 	// # number of rats per node for each zone. Length = nzone * nnode
 	int **import_rat_count; 

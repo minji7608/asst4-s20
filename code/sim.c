@@ -61,8 +61,10 @@ static inline void compute_all_weights(state_t *s) {
     int ni, neighbor, nid, nid2;
     graph_t *g = s->g;
     int nzone = g->nzone;
+    int this_zone = g->this_zone;
     START_ACTIVITY(ACTIVITY_WEIGHTS);
     for (int zi = 0; zi < nzone; zi++) {
+        if(zi == this_zone) continue;
         int neighbor_count = g->import_node_count[zi];
         for(neighbor = 0; neighbor < neighbor_count; neighbor++){
             nid = g->import_node_list[zi][neighbor];
@@ -239,21 +241,16 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
 
             // if moving to a new zone            
             else {
-                // outmsg("new zone : %d -- nid: %d\n", new_zone, nnid);
 
-                // outmsg("there's a rat [%d] going from....\n", rid);
-                // outmsg("zone %d -----> zone %d\n", this_zone, new_zone);
-                // outmsg("node %d -----> node %d\n", onid, nnid);
-                
                 s->rat_count[onid] -= 1;
                 // clear this zone's bitvector
                 s->zone_rat_bitvector[rid] = 0;
-                s->zone_rat_count--;
                 
                 numrats = s->export_numrats[new_zone];
-                s->export_rid[new_zone][numrats] = rid;
-                s->export_nid[new_zone][numrats] = nnid;
-                s->export_seed[new_zone][numrats] = s->rat_seed[rid];
+
+                s->export_rat_info[new_zone][numrats * 3] = rid;
+                s->export_rat_info[new_zone][numrats * 3 + 1] = nnid;
+                s->export_rat_info[new_zone][numrats * 3 + 2] = (int)(s->rat_seed[rid]);
 
                 s->export_numrats[new_zone]++;
             }
