@@ -11,7 +11,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
-#include <math.h>
+#include <math.h> 
 
 #if MPI
 #include <mpi.h>
@@ -152,8 +152,8 @@ typedef struct {
 	int *export_numrats; 
 
 	// nid per rat in each zone. Length = nzone * nrat
-	//int **import_nid; 
-	//int **export_nid;
+	int **import_nid; 
+	int **export_nid;
 
 	// rid per rat in each zone. Length = nzone * nrat
 	int **import_rat_info;
@@ -163,6 +163,7 @@ typedef struct {
 	//random_t **import_seed;
 	//random_t **export_seed;
 
+	// int **import_node_id
 	// # number of rats per node for each zone. Length = nzone * nnode
 	int **import_rat_count; 
 	int **export_rat_count;

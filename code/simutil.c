@@ -188,6 +188,11 @@ bool init_zone(state_t *s, int zid) {
     s->export_rat_info = calloc(nzone, sizeof(int*));
     ok = ok && s->export_rat_info != NULL;
 
+    s->import_nid = calloc(nzone, sizeof(int*));
+    ok = ok && s->import_nid != NULL;
+    s->export_nid = calloc(nzone, sizeof(int*));
+    ok = ok && s->export_nid != NULL;
+
     //s->import_numrats = int_alloc(nzone);
     //ok = ok && s->import_numrats != NULL;
     s->export_numrats = int_alloc(nzone);
@@ -220,6 +225,10 @@ bool init_zone(state_t *s, int zid) {
     for (i=0; i<nzone; i++) {
         s->import_rat_info[i] = int_alloc(num * 3);
         s->export_rat_info[i] = int_alloc(num * 3);
+
+        s->import_nid[i] = int_alloc(nnode);
+        s->export_nid[i] = int_alloc(nnode);
+
         s->import_node_state[i] = int_alloc(nnode);
         s->export_node_state[i] = int_alloc(nnode);
 
@@ -282,16 +291,20 @@ state_t *get_rats(graph_t *g, random_t global_seed) {
      */
     MPI_Bcast(&(nrat), 1, MPI_INT, 0 , MPI_COMM_WORLD);
 
-    int rat_position[nrat];
-    MPI_Bcast(rat_position, nrat, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+    state_t *s = new_rats(g, nrat, global_seed);
+
+    // int rat_position[nrat];
+    MPI_Bcast(s->rat_position, nrat, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+    seed_rats(s);
 
     FINISH_ACTIVITY(ACTIVITY_GLOBAL_COMM);
 
-    state_t *s = new_rats(g, nrat, global_seed);
-    memcpy(s->rat_position, rat_position, nrat * sizeof(int));
+    
+    // memcpy(s->rat_position, rat_position, nrat * sizeof(int));
 
     //s->rat_position = rat_position;
-    seed_rats(s); // reseeding the rats
+     // reseeding the rats
                                                   
     return s;
 }
@@ -302,26 +315,41 @@ void gather_node_state(state_t *s) {
     int nzone = s->g->nzone;
     int nnode = s->g->nnode;
     int len = nzone-1;
-    MPI_Request request[len];
+    MPI_Request request[nzone];
+    int import_numrats[nzone];
+    
     graph_t *g = s->g;
 
     START_ACTIVITY(ACTIVITY_GLOBAL_COMM);
+
     /* Your code should go here */
-    int count;
-    count = 0;
+
+
+
     for (zi = 1; zi < nzone; zi++){ //goes through all the processes
-        MPI_Irecv(s->import_rat_count[zi], nnode, MPI_INT, zi, 0, MPI_COMM_WORLD, &(request[count++]));        
+        MPI_Probe(zi, zi, MPI_COMM_WORLD, &(request[zi]));
+        MPI_Get_count(&(request[zi]), MPI_INT, &(import_numrats[zi]));
+
+        MPI_Recv(s->import_nid[zi], import_numrats[zi], MPI_INT, zi, zi, MPI_COMM_WORLD, MPI_STATUS_IGNORE); 
+        MPI_Recv(s->import_rat_count[zi], import_numrats[zi], MPI_INT, zi, zi, MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
+
+        for (i = 0; i < import_numrats[zi]; i++) {
+            s->rat_count[s->import_nid[zi][i]] = s->import_rat_count[zi][i];
+        }      
     }   
 
-    MPI_Waitall(len, request, MPI_STATUS_IGNORE);
+    // MPI_Waitall(len, request, MPI_STATUS_IGNORE);
+    
+    // for(i = 0; i < nnode; i++){
+    //     int* zone_id_list = g->zone_id;
+    //     int zid = zone_id_list[i]; // zone that the node is in
+    //     if (zid != 0) {
+    //         s->rat_count[i] = (s->import_rat_count)[zid][i];
+    //     }
+    // }
 
-    for(i = 0; i < nnode; i++){
-        int* zone_id_list = g->zone_id;
-        int zid = zone_id_list[i]; // zone that the node is in
-        if (zid != 0) {
-            s->rat_count[i]=(s->import_rat_count)[zid][i];
-        }
-    }
+    // MPI_Status status[nzone];
+    // int *import_rat
 
     FINISH_ACTIVITY(ACTIVITY_GLOBAL_COMM);
 
@@ -335,14 +363,19 @@ void send_node_state(state_t *s) {
     graph_t *g = s->g;
     int nnode = g->nnode;
     zi = g->this_zone;
+
+    int count = 0;
     for (i=0; i<g->local_node_count; i++) {
         ni = g->local_node_list[i];
-        s->export_rat_count[zi][ni] = s->rat_count[ni];
+        s->export_nid[zi][i] = ni;
+        s->export_rat_count[zi][count] = s->rat_count[ni];
+        count++;
     }
     
-    MPI_Request request;
+    MPI_Request request[(g->nzone) * 2];
 
-    MPI_Isend(s->export_rat_count[zi], nnode, MPI_INT, 0, 0, MPI_COMM_WORLD, &request);
+    MPI_Isend(s->export_nid[zi], count, MPI_INT, 0, zi, MPI_COMM_WORLD, &(request[zi*2]));
+    MPI_Isend(s->export_rat_count[zi], count, MPI_INT, 0, zi, MPI_COMM_WORLD, &(request[zi*2+1]));
     
     FINISH_ACTIVITY(ACTIVITY_GLOBAL_COMM);
 }

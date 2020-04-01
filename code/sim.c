@@ -63,14 +63,14 @@ static inline void compute_all_weights(state_t *s) {
     int nzone = g->nzone;
     int this_zone = g->this_zone;
     START_ACTIVITY(ACTIVITY_WEIGHTS);
-    for (int zi = 0; zi < nzone; zi++) {
-        if(zi == this_zone) continue;
-        int neighbor_count = g->import_node_count[zi];
-        for(neighbor = 0; neighbor < neighbor_count; neighbor++){
-            nid = g->import_node_list[zi][neighbor];
-            s->node_weight[nid] =  compute_weight(s, nid);
-        }
-    }
+    // for (int zi = 0; zi < nzone; zi++) {
+    //     if(zi == this_zone) continue;
+    //     int neighbor_count = g->import_node_count[zi];
+    //     for(neighbor = 0; neighbor < neighbor_count; neighbor++){
+    //         nid = g->import_node_list[zi][neighbor];
+    //         s->node_weight[nid] =  compute_weight(s, nid);
+    //     }
+    // }
 
     for (ni = 0; ni < g->local_node_count; ni++){
         nid2 = g->local_node_list[ni];   
@@ -109,7 +109,6 @@ static inline void find_all_sums(state_t *s) {
         nid = g->local_node_list[ni];
 	    double sum = 0.0;
 	    for (eid = g->neighbor_start[nid]; eid < g->neighbor_start[nid+1]; eid++) {
-            // outmsg("node [%d] weight: %f\n", g->neighbor[eid], s->node_weight[g->neighbor[eid]]);
 	        sum += s->node_weight[g->neighbor[eid]];
 	        s->neighbor_accum_weight[eid] = sum;
 	    }
@@ -206,6 +205,7 @@ static inline int fast_next_random_move(state_t *s, int r) {
 static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
     int rid, ri, zi, numrats;
     find_all_sums(s);
+    START_ACTIVITY(ACTIVITY_NEXT);
     int *zone_id = s->g->zone_id;
     int this_zone = s->g->this_zone;
     int nzone = s->g->nzone; 
@@ -268,9 +268,11 @@ static inline void do_batch(state_t *s, int batch, int bstart, int bcount) {
     //     // }
         
     // }
-    
+    FINISH_ACTIVITY(ACTIVITY_NEXT);
+
     
     /* Update weights */
+    
 #if MPI
     exchange_rats(s);
     exchange_node_states(s);
@@ -302,37 +304,43 @@ double simulate(state_t *s, int count, int dinterval, bool display) {
     double start = currentSeconds();
     take_census(s);
     compute_all_weights(s);
+    
+    
+    
     if (display) {
 #if MPI
+    exchange_node_weights(s);
+
 	if (s->g->this_zone == 0)
 	    // Process 0 has a copy of the initial counts for all nodes.
 	    show(s, show_counts);
 #else
-	show(s, show_counts);
+	    show(s, show_counts);
 #endif
     }
     for (i = 0; i < count; i++) {
-	batch_step(s);
-	if (display) {
-	    show_counts = (((i+1) % dinterval) == 0) || (i == count-1);
+	    batch_step(s);
+	    if (display) {
+	        show_counts = (((i+1) % dinterval) == 0) || (i == count-1);
 #if MPI
-	    if (s->g->this_zone == 0) {
-		// Process 0 needs to call function show on each simulation step.
-		// When show_counts is true, it will need to have
-		// the counts for all other zones.
-		// These must be gathered from the other processes.
-		if (show_counts)
-		    gather_node_state(s);
-		show(s, show_counts);
-	    } else {
-		if (show_counts)
-		    // Send counts to process 0
-		    send_node_state(s);
-	    }
+            if (s->g->this_zone == 0) {
+            // Process 0 needs to call function show on each simulation step.
+            // When show_counts is true, it will need to have
+            // the counts for all other zones.
+            // These must be gathered from the other processes.
+            if (show_counts)
+                gather_node_state(s);
+                show(s, show_counts);
+            } 
+            else {
+                if (show_counts)
+                    // Send counts to process 0
+                    send_node_state(s);
+                }
 #else
-	    show(s, show_counts);
+	        show(s, show_counts);
 #endif
-	}
+        }
     }
     double delta = currentSeconds() - start;
     done(s);
